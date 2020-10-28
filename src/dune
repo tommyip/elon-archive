@@ -1,0 +1,6 @@
+(library
+  (name elon)
+  (libraries sedlex containers)
+  (preprocess
+    (pps sedlex.ppx))
+    (flags :standard -w +39))
