@@ -1,6 +1,9 @@
 open Types
 
-exception UnknownToken of string
+let utf8_len = Uuseg_string.fold_utf_8 `Grapheme_cluster (fun len _ -> len + 1) 0
+
+exception UnknownToken of int * int
+exception CharLen of string
 
 let digit = [%sedlex.regexp? '0'..'9']
 let integer = [%sedlex.regexp? Opt '-', Plus digit]
@@ -50,13 +53,21 @@ let rec token buf =
   | ']' -> Some R_SQ_BRACKET
   | "variant" -> Some VARIANT
   | "mut" -> Some MUT
-  | '\'', any ,'\'' -> Some (CHAR (Sedlexing.Utf8.lexeme buf))
+  | '\'', any, Star Sub(any, '\''),'\'' ->
+    (* A char is a unicode extended grapheme cluster which can contain
+       multiple codepoints. *)
+    let n_codepoints = Sedlexing.lexeme_length buf - 2 in
+    let c = Sedlexing.Utf8.sub_lexeme buf 1 n_codepoints in
+    if utf8_len c = 1 then
+      Some (CHAR c)
+    else
+      raise (CharLen (Sedlexing.Utf8.lexeme buf))
   | '"', Star Sub(any, '"'), '"' -> Some (STRING (Sedlexing.Utf8.lexeme buf))
   | integer -> Some (NUMBER (I64 (Int64.of_string (Sedlexing.Utf8.lexeme buf))))
   | float -> Some (NUMBER (F64 (Float.of_string (Sedlexing.Utf8.lexeme buf))))
   | ident -> Some (IDENT (Sedlexing.Utf8.lexeme buf))
   | eof -> None
-  | _ -> raise (UnknownToken (Sedlexing.Utf8.lexeme buf))
+  | _ -> raise (UnknownToken (Sedlexing.lexeme_start buf, Sedlexing.lexeme_end buf))
 
 let rec tokens_pp buf =
   match token buf with

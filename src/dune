@@ -1,6 +1,6 @@
 (library
   (name elon)
-  (libraries sedlex containers)
+  (libraries sedlex containers uuseg.string)
   (preprocess
     (pps sedlex.ppx))
     (flags :standard -w +39))
