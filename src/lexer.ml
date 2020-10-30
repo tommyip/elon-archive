@@ -15,44 +15,44 @@ let ident = [%sedlex.regexp? (lowercase | uppercase | '_'), Star (lowercase | up
 let rec token buf =
   match%sedlex buf with
   | white_space -> token buf
-  | "()" -> Some UNIT
-  | "true" -> Some (BOOLEAN true)
-  | "false" -> Some (BOOLEAN false)
+  | '=' -> Some EQ
+  | '>' -> Some GT
+  | '<' -> Some LT
+  | '+' -> Some PLUS
+  | '-' -> Some MINUS
+  | '*' -> Some STAR
+  | '/' -> Some SLASH
+  | '%' -> Some PERCENT
+  | '.' -> Some DOT
+  | ':' -> Some COLON
+  | ',' -> Some COMMA
+  | ';' -> Some SEMICOLON
+  | '|' -> Some PIPE
+  | '(' -> Some L_PAREN
+  | ')' -> Some R_PAREN
+  | '{' -> Some L_BRACKET
+  | '}' -> Some R_BRACKET
+  | '[' -> Some L_SQ_BRACKET
+  | ']' -> Some R_SQ_BRACKET
+  | "!=" -> Some BANG_EQ
+  | ">=" -> Some GT_EQ
+  | "<=" -> Some LT_EQ
+  | "**" -> Some STAR_STAR
+  | ".." -> Some DOT_DOT
+  | "->" -> Some ARROW
+  | "=>" -> Some FAT_ARROW
+  | ":=" -> Some COLON_EQ
+  | "..." -> Some DOT_DOT_DOT
   | "and" -> Some AND
   | "or" -> Some OR
   | "not" -> Some NOT
-  | '=' -> Some EQ
-  | "!=" -> Some NOT_EQ
-  | '>' -> Some GT
-  | '<' -> Some LT
-  | ">=" -> Some GTEQ
-  | "<=" -> Some LTEQ
-  | '+' -> Some PLUS
-  | '-' -> Some MINUS
-  | '*' -> Some TIMES
-  | '/' -> Some DIVIDE
-  | "mod" -> Some MOD
-  | "**" -> Some EXP
-  | '(' -> Some L_PAREN
-  | ')' -> Some R_PAREN
-  | '.' -> Some DOT
-  | ".." -> Some DOT_DOT
-  | "..." -> Some DOT_DOT_DOT
-  | ':' -> Some COLON
-  | ',' -> Some COMMA
-  | "->" -> Some ARROW
-  | "=>" -> Some FAT_ARROW
-  | ';' -> Some SEMICOLON
-  | '{' -> Some L_BRACKET
-  | '}' -> Some R_BRACKET
   | "let" -> Some LET
   | "match" -> Some MATCH
-  | '|' -> Some PIPE
-  | ":=" -> Some WALRUS
-  | '[' -> Some L_SQ_BRACKET
-  | ']' -> Some R_SQ_BRACKET
   | "variant" -> Some VARIANT
   | "mut" -> Some MUT
+  | "()" -> Some UNIT
+  | "true" -> Some (BOOLEAN true)
+  | "false" -> Some (BOOLEAN false)
   | '\'', any, Star Sub(any, '\''),'\'' ->
     (* A char is a unicode extended grapheme cluster which can contain
        multiple codepoints. *)
@@ -62,7 +62,9 @@ let rec token buf =
       Some (CHAR c)
     else
       raise (CharLen (Sedlexing.Utf8.lexeme buf))
-  | '"', Star Sub(any, '"'), '"' -> Some (STRING (Sedlexing.Utf8.lexeme buf))
+  | '"', Star Sub(any, '"'), '"' ->
+    let len = Sedlexing.lexeme_length buf - 2 in
+    Some (STRING (Sedlexing.Utf8.sub_lexeme buf 1 len))
   | integer -> Some (NUMBER (I64 (Int64.of_string (Sedlexing.Utf8.lexeme buf))))
   | float -> Some (NUMBER (F64 (Float.of_string (Sedlexing.Utf8.lexeme buf))))
   | ident -> Some (IDENT (Sedlexing.Utf8.lexeme buf))
