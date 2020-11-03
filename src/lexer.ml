@@ -1,8 +1,9 @@
 open Types
+open Tokens
 
 let utf8_len = Uuseg_string.fold_utf_8 `Grapheme_cluster (fun len _ -> len + 1) 0
 
-exception UnknownToken of int * int
+exception UnknownToken of Types.span
 exception CharLen of string
 
 let digit = [%sedlex.regexp? '0'..'9']
@@ -12,9 +13,9 @@ let lowercase = [%sedlex.regexp? 'a'..'z']
 let uppercase = [%sedlex.regexp? 'A'..'Z']
 let ident = [%sedlex.regexp? (lowercase | uppercase | '_'), Star (lowercase | uppercase | digit | '_')]
 
-let rec token buf =
+let rec token_ty buf =
   match%sedlex buf with
-  | white_space -> token buf
+  | white_space -> token_ty buf
   | '=' -> Some EQ
   | '>' -> Some GT
   | '<' -> Some LT
@@ -65,17 +66,18 @@ let rec token buf =
   | '"', Star Sub(any, '"'), '"' ->
     let len = Sedlexing.lexeme_length buf - 2 in
     Some (STRING (Sedlexing.Utf8.sub_lexeme buf 1 len))
-  | integer -> Some (NUMBER (I64 (Int64.of_string (Sedlexing.Utf8.lexeme buf))))
-  | float -> Some (NUMBER (F64 (Float.of_string (Sedlexing.Utf8.lexeme buf))))
+  | integer -> Some (I64 (Int64.of_string (Sedlexing.Utf8.lexeme buf)))
+  | float -> Some (F64 (Float.of_string (Sedlexing.Utf8.lexeme buf)))
   | ident -> Some (IDENT (Sedlexing.Utf8.lexeme buf))
   | eof -> None
-  | _ -> raise (UnknownToken (Sedlexing.lexeme_start buf, Sedlexing.lexeme_end buf))
+  | _ -> raise (UnknownToken { left=Sedlexing.lexeme_start buf; right=Sedlexing.lexeme_end buf })
+
+let token buf =
+  match (token_ty buf, Sedlexing.loc buf) with
+  | Some ty, (left, right) -> Some { ty; span={ left; right } }
+  | None, _ -> None
 
 let rec tokens_pp buf =
-  match token buf with
-  | Some tok -> print_endline (token_str tok); tokens_pp buf
+  match token_ty buf with
+  | Some tok -> print_endline (token_type_str tok); tokens_pp buf
   | None -> ()
-
-let lex ctx =
-  let lexbuf = Sedlexing.Utf8.from_channel ctx.in_chan in
-  tokens_pp lexbuf

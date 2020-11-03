@@ -1,5 +1,4 @@
 open Printf
-open Elon
 open Elon.Types
 
 type argument_error
@@ -17,6 +16,6 @@ let parse_arg () =
 
 let () =
   match parse_arg () with
-  | Ok ctx -> Lexer.lex ctx
+  | Ok ctx -> Elon.Driver.compile ctx
   | Error NoArg -> eprintf "Elon compiler\n\nUsage: elonc <file>\n"
   | Error FileNotFound -> eprintf "Error: File not found\n"

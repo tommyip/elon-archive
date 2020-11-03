@@ -1,5 +1,5 @@
-open Elon.Types
 open Elon
+open Elon.Tokens
 
 module A = Alcotest
 
@@ -7,16 +7,28 @@ module A = Alcotest
 
 let blackhole _ = ()
 
-let lex_string string =
+let lex_string lexer string =
   let buf = Sedlexing.Utf8.from_string string in
-  CCList.of_gen (fun () -> Lexer.token buf)
+  CCList.of_gen (fun () -> lexer buf)
 
 let token = A.testable token_pp ( = )
+let token_ty = A.testable token_ty_pp ( = )
 
 let check_tokens ~src ~expected () =
-  A.check (A.list token) "Correct tokens" expected (lex_string src)
+  A.check (A.list token_ty) "Correct tokens" expected (lex_string Lexer.token_ty src)
 
 (* Tests *)
+
+let test_span () =
+  let src = "var + 42 / 1337" in
+  let expected = [
+    { ty=IDENT "var"; span={ left=0; right=3 } };
+    { ty=PLUS; span={ left=4; right=5 } };
+    { ty=I64 (Int64.of_int 42); span={ left=6; right=8 } };
+    { ty=SLASH; span={ left=9; right=10 } };
+    { ty=I64 (Int64.of_int 1337); span={ left=11; right=15 } }
+  ] in
+  A.check (A.list token) "Correct span information" expected (lex_string Lexer.token src)
 
 let test_atom_symbols () =
   check_tokens ~src:"= < > + - * / % . : , ; | ( ) { } [ ]"
@@ -38,16 +50,15 @@ let test_unit_and_boolean () =
     ~expected:[UNIT; BOOLEAN true; BOOLEAN false] ()
 
 let test_integers () =
-  let i64 i = NUMBER (I64 (Int64.of_int i)) in
+  let i64 i = I64 (Int64.of_int i) in
   check_tokens ~src:"0 1 123 9876543210 -0 -1 -123 -9876543210"
     ~expected:[i64 0; i64 1; i64 123; i64 9876543210;
                i64 0; i64 (-1); i64 (-123); i64 (-9876543210)] ()
 
 let test_floats () =
-  let f64 f = NUMBER (F64 f) in
   check_tokens ~src:"0. 123. .0 .123 123.321 1000.00 -0. -123. -987.654"
-    ~expected:[f64 0.; f64 123.; f64 0.; f64 0.123; f64 123.321; f64 1000.;
-               f64 (-0.); f64 (-123.); f64 (-987.654)] ()
+    ~expected:[F64 0.; F64 123.; F64 0.; F64 0.123; F64 123.321; F64 1000.;
+               F64 (-0.); F64 (-123.); F64 (-987.654)] ()
 
 let test_chars () =
   check_tokens ~src:"'a' 'A' '7' '火' 'Æ' 'ç' '🚀' '👨‍👩‍👧‍👦'"
@@ -57,12 +68,12 @@ let test_chars () =
 let test_chars_not_empty () =
   A.check_raises
     "Character cannot be empty"
-    (Lexer.UnknownToken (0, 0)) (fun () -> lex_string "''" |> blackhole)
+    (Lexer.UnknownToken { left=0; right=0 }) (fun () -> lex_string Lexer.token "''" |> blackhole)
 
 let test_chars_no_multiple_egc () =
   A.check_raises
     "A character contains a single extended grapheme cluster"
-    (Lexer.CharLen "'ab'") (fun () -> lex_string "'ab'" |> blackhole)
+    (Lexer.CharLen "'ab'") (fun () -> lex_string Lexer.token "'ab'" |> blackhole)
 
 let test_strings () =
   check_tokens
@@ -91,6 +102,7 @@ let test_idents () =
 let run () =
   A.run "Lexer" [
     "token", [
+      A.test_case "Token span" `Quick test_span;
       A.test_case "Atom symbols" `Quick test_atom_symbols;
       A.test_case "Longer symbols" `Quick test_longer_symbols;
       A.test_case "Keywords" `Quick test_keywords;
