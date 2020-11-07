@@ -1,7 +1,0 @@
-expr ::= equality_expr ;
-equality_expr ::= comparsion_expr (( EQ | NOT_EQ ) comparsion_expr)* ;
-comparsion_expr ::= addition_expr (( GT | LT | GT_EQ | LT_EQ ) addition_expr)* ;
-addition_expr ::= multiplication_expr (( PLUS | MINUS ) multiplication_expr)* ;
-multiplication_expr ::= atom_expr (( STAR | SLASH ) atom_expr)* ;
-atom_expr ::= I64
-            | L_PAREN expr R_PAREN ;

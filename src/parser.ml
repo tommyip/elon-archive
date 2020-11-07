@@ -15,6 +15,18 @@ let syntax_error_pp error pos =
   in
   Printf.eprintf "[Syntax error]: %s at pos %d\n" msg pos
 
+(* binary_expr ::= lexpr ( tok1 | ... ) rexpr)* *)
+let binary_op_parser matcher ~toks ~lparser ~rparser =
+  let left = lparser () in
+  let rec aux left =
+    match matcher toks with
+    | Some { ty; span } ->
+        let op = token2binop ty in
+        let right = rparser () in
+        aux { expr=Binary { op; left; right }; span }
+    | None -> left
+  in aux left
+
 let parse token lexbuf =
   let tok_buf = ref None in
   let lex_pos = ref 0 in
@@ -32,74 +44,50 @@ let parse token lexbuf =
       end
     | None -> None
   in
-  let consume () = next () |> Helpers.blackhole in
-
-  (* Try to match a token, consume it if successful *)
-  let match_tok (lst : Tokens.token_type list) =
+  (* Try to match a token, consume and return it if successful *)
+  let try_consume lst =
     match peak () with
-    | Some { ty; _ } as tok -> begin
+    | Some { ty; _ } -> begin
         match List.find_opt ((=) ty) lst with
-        | Some _ -> consume (); tok
+        | Some _ -> next ()
         | None -> None
         end
     | None -> None
   in
 
-  (* atom_expr ::= I64
-                 | L_PAREN expr R_PAREN ; *)
-  let rec parse_atom_expr () =
+  let binary_expr = binary_op_parser try_consume in
+
+  let rec atom_expr () =
     match next () with
-    | Some { ty=(Tokens.I64 i); span } -> { expr=(I64 i); span }
+    | Some { ty=UNIT; span } -> { expr=Unit; span }
+    | Some { ty=BOOLEAN b; span } -> { expr=Bool b; span }
+    | Some { ty=Tokens.I64 i; span } -> { expr=I64 i; span }
+    | Some { ty=Tokens.F64 f; span } -> { expr=F64 f; span }
+    | Some { ty=CHAR c; span } -> { expr=Char c; span }
+    | Some { ty=STRING c; span } -> { expr=String c; span }
+    | Some { ty=IDENT id; span } -> { expr=Ident id; span }
     | Some { ty=L_PAREN; span } -> begin
-        let { expr; _ } = parse_expr () in
+        let { expr; _ } = expr () in
         match next () with
         | Some { ty=R_PAREN; span=span_end } -> { expr; span=(merge_span span span_end) }
         | _ -> raise (SyntaxError { error=Unbalanced "paranthesis"; pos=span.left })
       end
     | _ -> raise (SyntaxError { error=Expecting "expression"; pos=(!lex_pos) })
+  and unary_expr () =
+    match try_consume [NOT; MINUS] with
+    | Some { ty; span } ->
+        let op = token2unaryop ty in
+        let expr = atom_expr () in
+        { expr=Unary { op; expr }; span=(merge_span span expr.span) }
+    | None -> atom_expr ()
+  and exponentiation_expr () = binary_expr ~toks:[STAR_STAR] ~lparser:unary_expr ~rparser:exponentiation_expr
+  and multiplication_expr () = binary_expr ~toks:[STAR; SLASH; PERCENT] ~lparser:exponentiation_expr ~rparser:exponentiation_expr
+  and addition_expr () = binary_expr ~toks:[PLUS; MINUS] ~lparser:multiplication_expr ~rparser:multiplication_expr
+  and comparsion_expr () = binary_expr ~toks:[GT; LT; GT_EQ; LT_EQ] ~lparser:addition_expr ~rparser:addition_expr
+  and equality_expr () = binary_expr ~toks:[EQ; BANG_EQ] ~lparser:comparsion_expr ~rparser:comparsion_expr
+  and and_expr () = binary_expr ~toks:[AND] ~lparser:equality_expr ~rparser:equality_expr
+  and or_expr () = binary_expr ~toks:[OR] ~lparser:and_expr ~rparser:and_expr
+  and expr () = or_expr () in
 
-  (* multiplication_expr ::= atom_expr (( STAR | SLASH ) atom_expr)* *)
-  and parse_multiplication_expr () =
-    let left = parse_atom_expr () in
-    let rec aux expr =
-      match match_tok [STAR; SLASH] with
-      | Some { ty; span } -> aux { expr=Binary { op=(token2op ty); left=expr; right=(parse_atom_expr ()) }; span }
-      | None -> expr
-    in
-    aux left
-
-  (* addition_expr ::= multiplication_expr (( PLUS | MINUS ) multiplication_expr)* ; *)
-  and parse_addition_expr () =
-    let left = parse_multiplication_expr () in
-    let rec aux expr =
-      match match_tok [PLUS; MINUS] with
-      | Some { ty; span } -> aux { expr=Binary { op=(token2op ty); left=expr; right=(parse_multiplication_expr ()) }; span }
-      | None -> expr
-    in
-    aux left
-
-  (* comparsion_expr ::= addition_expr (( GT | LT | GT_EQ | LT_EQ ) addition_expr)* ; *)
-  and parse_comparsion_expr () =
-    let left = parse_addition_expr () in
-    let rec aux expr =
-      match match_tok [GT; LT; GT_EQ; LT_EQ] with
-      | Some { ty; span } -> aux { expr=Binary { op=(token2op ty); left=expr; right=(parse_addition_expr ()) }; span }
-      | None -> expr
-    in
-    aux left
-
-  (* equality_expr ::= comparsion_expr (( EQ | NOT_EQ ) comparsion_expr)* ; *)
-  and parse_equality_expr () =
-    let left = parse_comparsion_expr () in
-    let rec aux expr =
-      match match_tok [EQ; BANG_EQ] with
-      | Some { ty; span } -> aux { expr=Binary { op=(token2op ty); left=expr; right=(parse_comparsion_expr ()) }; span }
-      | _ -> expr
-    in
-    aux left
-
-  (* expr ::= equality_expr *)
-  and parse_expr () = parse_equality_expr () in
-
-  try Ok (parse_expr ())
+  try Ok (expr ())
   with SyntaxError { error; pos } -> Error (error, pos)
