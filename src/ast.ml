@@ -1,3 +1,15 @@
+type 'a spanned = { node: 'a; span: Types.span }
+
+type variant_def =
+  { name: string;
+    variants: string spanned list
+  }
+
+let spanned_variant_def_str { node; _ } =
+  let variants = String.concat " "
+    (List.map (fun spanned -> spanned.node) node.variants) in
+  Printf.sprintf "(variant %s %s)" node.name variants
+
 type bin_op = Eq | NotEq | Gt | Lt | GtEq | LtEq | Add | Sub | Mul | Div | Mod | Exp
 type unary_op = Not | Neg
 
@@ -25,9 +37,9 @@ let token2unaryop tok =
   | MINUS -> Neg
   | _ -> raise Helpers.Unreachable
 
-type expr_inner
-  = Binary of { op: bin_op; left: expr; right: expr }
-  | Unary of { op: unary_op; expr: expr }
+type expr
+  = Binary of { op: bin_op; left: expr spanned; right: expr spanned }
+  | Unary of { op: unary_op; expr: expr spanned }
   | Unit
   | Bool of bool
   | I64 of Int64.t
@@ -35,8 +47,6 @@ type expr_inner
   | Char of string
   | String of string
   | Ident of string
-
-and expr = { expr: expr_inner; span: Types.span }
 
 let bin_op_str = function
   | Eq -> "="
@@ -56,13 +66,12 @@ let unary_op_str = function
   | Not -> "not"
   | Neg -> "-"
 
-let rec expr_str expr =
-  let { expr; _ } = expr in
-  match expr with
+let rec spanned_expr_str expr =
+  match expr.node with
   | Binary { op; left; right } ->
-      Printf.sprintf "(%s %s %s)" (bin_op_str op) (expr_str left) (expr_str right)
+      Printf.sprintf "(%s %s %s)" (bin_op_str op) (spanned_expr_str left) (spanned_expr_str right)
   | Unary { op; expr } ->
-      Printf.sprintf "(%s %s)" (unary_op_str op) (expr_str expr)
+      Printf.sprintf "(%s %s)" (unary_op_str op) (spanned_expr_str expr)
   | Unit -> "()"
   | Bool b -> Bool.to_string b
   | I64 i -> Int64.to_string i

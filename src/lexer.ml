@@ -68,7 +68,11 @@ let rec token_ty buf =
     Some (STRING (Sedlexing.Utf8.sub_lexeme buf 1 len))
   | integer -> Some (I64 (Int64.of_string (Sedlexing.Utf8.lexeme buf)))
   | float -> Some (F64 (Float.of_string (Sedlexing.Utf8.lexeme buf)))
-  | ident -> Some (IDENT (Sedlexing.Utf8.lexeme buf))
+  | ident ->
+    let name = Sedlexing.Utf8.lexeme buf in
+    let init_c = String.get name 0 in
+    let is_capital = init_c >= 'A' && init_c <= 'Z' in
+    Some (IDENT { name; is_capital })
   | eof -> None
   | _ -> raise (UnknownToken { left=Sedlexing.lexeme_start buf; right=Sedlexing.lexeme_end buf })
 

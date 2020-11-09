@@ -47,55 +47,55 @@ type token_type
   | CHAR of string
   | STRING of string
   (* Identifer *)
-  | IDENT of string
+  | IDENT of { name: string; is_capital: bool }
 
 type token = { ty: token_type; span: Types.span }
 
 let token_type_str = function
   | EOF -> "EOF"
-  | EQ -> "="
-  | GT -> ">"
-  | LT -> "<"
-  | PLUS -> "+"
-  | MINUS -> "-"
-  | STAR -> "*"
-  | SLASH -> "/"
-  | PERCENT -> "%"
-  | DOT -> "."
-  | COLON -> ":"
-  | COMMA -> ","
-  | SEMICOLON -> ";"
-  | PIPE -> "|"
-  | L_PAREN -> "("
-  | R_PAREN -> ")"
-  | L_BRACKET -> "{"
-  | R_BRACKET -> "}"
-  | L_SQ_BRACKET -> "["
-  | R_SQ_BRACKET -> "]"
-  | BANG_EQ -> "!="
-  | GT_EQ -> "<="
-  | LT_EQ -> ">="
-  | STAR_STAR -> "**"
-  | DOT_DOT -> ".."
-  | ARROW -> "->"
-  | FAT_ARROW -> "=>"
-  | COLON_EQ -> ":="
-  | DOT_DOT_DOT -> "..."
-  | AND -> "AND"
-  | OR -> "OR"
-  | NOT -> "NOT"
-  | LET -> "LET"
-  | MATCH -> "MATCH"
-  | VARIANT -> "VARIANT"
-  | RECORD -> "RECORD"
-  | MUT -> "MUT"
+  | EQ -> "SYMBOL ="
+  | GT -> "SYMBOL >"
+  | LT -> "SYMBOL <"
+  | PLUS -> "SYMBOL +"
+  | MINUS -> "SYMBOL -"
+  | STAR -> "SYMBOL *"
+  | SLASH -> "SYMBOL /"
+  | PERCENT -> "SYMBOL %"
+  | DOT -> "SYMBOL ."
+  | COLON -> "SYMBOL :"
+  | COMMA -> "SYMBOL ,"
+  | SEMICOLON -> "SYMBOL ;"
+  | PIPE -> "SYMBOL |"
+  | L_PAREN -> "SYMBOL ("
+  | R_PAREN -> "SYMBOL )"
+  | L_BRACKET -> "SYMBOL {"
+  | R_BRACKET -> "SYMBOL }"
+  | L_SQ_BRACKET -> "SYMBOL ["
+  | R_SQ_BRACKET -> "SYMBOL ]"
+  | BANG_EQ -> "SYMBOL !="
+  | GT_EQ -> "SYMBOL <="
+  | LT_EQ -> "SYMBOL >="
+  | STAR_STAR -> "SYMBOL **"
+  | DOT_DOT -> "SYMBOL .."
+  | ARROW -> "SYMBOL ->"
+  | FAT_ARROW -> "SYMBOL =>"
+  | COLON_EQ -> "SYMBOL :="
+  | DOT_DOT_DOT -> "SYMBOL ..."
+  | AND -> "SYMBOL and"
+  | OR -> "SYMBOL or"
+  | NOT -> "SYMBOL not"
+  | LET -> "KEYWORD let"
+  | MATCH -> "KEYWORD match"
+  | VARIANT -> "KEYWORD variant"
+  | RECORD -> "KEYWORD record"
+  | MUT -> "KEYWORD mut"
   | UNIT -> "LITERAL ()"
   | BOOLEAN bool -> "LITERAL " ^ Bool.to_string bool
   | I64 i -> "LITERAL " ^ Int64.to_string i
   | F64 f -> "LITERAL " ^ Float.to_string f
   | CHAR char -> "LITERAL '" ^ char ^ "'"
   | STRING string -> "LITERAL \"" ^ string ^ "\""
-  | IDENT ident -> "IDENT " ^ ident
+  | IDENT { name; _ } -> "IDENT " ^ name
 
 let token_ty_pp fmt token_ty =
   Format.pp_print_string fmt (token_type_str token_ty)
