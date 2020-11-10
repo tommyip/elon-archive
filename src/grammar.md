@@ -1,3 +1,36 @@
+## Core language
+
+```
+# Variables
+let a = 5;
+let b: int = 10;
+let c: array<int> = [| 1, 4; 7 |];
+
+# Pattern matching
+match cond {
+| a -> b
+| c -> d
+| _ -> f
+}
+
+# Conditional expression
+if a { b } else { c }
+
+# Functions
+let id = () => ();
+let sum = (a: int)(b: float) -> float =>
+  a + Float.to_int(b);
+let bump = sum(1);
+let fib = (x: int) -> int =>
+  fib(x - 1) + fib(x - 2);
+let quadratic = (a: float, b: float, c: float) -> (float, float) => {
+  let neg_b = -b;
+  let root = Float.sqrt(b ** 2 - 4 * a * c);
+  let double_a = 2 * a;
+  ((neg_b + root) / double_a, (neg_b - root) / double_a)
+};
+```
+
 ## Precendence
 
 Operator | Associativity
@@ -18,6 +51,15 @@ function application (additional parameter list) | -
 ```
 literal             ::= UNIT | BOOLEAN | I64 | F64 | CHAR | STRING ;
 
+variant_def         ::= "variant" C_IDENT "=" constructor_def ("|" constructor_def)* ;
+constructor_def     ::= C_IDENT ;
+
+match_expr          ::= "match" IDENT "{" ("|" match_pattern "->" expr)+ "}"
+match_pattern       ::= literal
+                      | constructor
+                      | IDENT
+                      | UNDERSCORE ;
+
 expr                ::= or_expr ;
 or_expr             ::= and_expr ("or" and_expr)* ;
 and_expr            ::= equality_expr ("and" equality_expr)* ;
@@ -28,6 +70,7 @@ multiplication_expr ::= exponentiation_expr (("*" | "/" | "%") exponentiation_ex
 exponentiation_expr ::= unary_expr ["**" exponentiation_expr] ;
 unary_expr          ::= ["not" | "-"] atom ;
 atom                ::= IDENT
+                      | constructor
                       | literal
                       | "(" expr ")" ;
 ```

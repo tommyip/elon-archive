@@ -47,7 +47,7 @@ type token_type
   | CHAR of string
   | STRING of string
   (* Identifer *)
-  | IDENT of { name: string; is_capital: bool }
+  | IDENT of string
 
 type token = { ty: token_type; span: Types.span }
 
@@ -95,7 +95,7 @@ let token_type_str = function
   | F64 f -> "LITERAL " ^ Float.to_string f
   | CHAR char -> "LITERAL '" ^ char ^ "'"
   | STRING string -> "LITERAL \"" ^ string ^ "\""
-  | IDENT { name; _ } -> "IDENT " ^ name
+  | IDENT name -> "IDENT " ^ name
 
 let token_ty_pp fmt token_ty =
   Format.pp_print_string fmt (token_type_str token_ty)

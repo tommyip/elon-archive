@@ -51,22 +51,21 @@ let parse token lexbuf =
     | None -> None
   in
 
-  let _binary_expr = binary_op_parser try_consume in
+  let binary_expr = binary_op_parser try_consume in
 
   let constructor_def () =
     match next () with
-    | Some { ty=IDENT { name; is_capital }; span } ->
-        if is_capital then
-          { node=name; span }
-        else
-          raise (SyntaxError ("Variant constructor should be capitalized", span))
+    | Some { ty=IDENT name; span } when Helpers.is_capital name ->
+        { node=name; span }
+    | Some { ty=IDENT _; span } ->
+        raise (SyntaxError ("Variant constructor should be capitalized", span))
     | _ -> raise (SyntaxError ("Expecting a variant constructor", lex_pos_span ()))
   in
 
-  let variant_def () =
+  let _variant_def () =
     let start_span = (Option.get (next ())).span in
     match next () with
-    | Some { ty=IDENT { name; is_capital=true }; _ } ->
+    | Some { ty=IDENT name; _ } when Helpers.is_capital name ->
         begin match try_consume [EQ] with
         | Some { ty=EQ; _ } ->
             let variant = constructor_def () in
@@ -80,7 +79,7 @@ let parse token lexbuf =
             { node={ name; variants }; span }
         | _ -> raise (SyntaxError ("Expecting a `=` symbol", lex_pos_span ()))
         end
-    | Some { ty=IDENT { is_capital=false; _ }; span } ->
+    | Some { ty=IDENT _; span } ->
         raise (SyntaxError ("The type name of a variant should be capitalized", span))
     | _ ->
         let pos = start_span.right + 1 in
@@ -88,23 +87,58 @@ let parse token lexbuf =
         raise (SyntaxError ("Expecting a type name for the variant", span))
   in
 
-  (*
-  let rec atom_expr () =
+  let match_pattern () =
     match next () with
-    | Some { ty=UNIT; span } -> { node=Unit; span }
-    | Some { ty=BOOLEAN b; span } -> { node=Bool b; span }
-    | Some { ty=Tokens.I64 i; span } -> { node=I64 i; span }
-    | Some { ty=Tokens.F64 f; span } -> { node=F64 f; span }
-    | Some { ty=CHAR c; span } -> { node=Char c; span }
-    | Some { ty=STRING c; span } -> { node=String c; span }
-    | Some { ty=IDENT { name; _ }; span } -> { node=Ident name; span }
+    | Some { ty=UNIT; span } -> { node=LiteralPat Unit; span }
+    | Some { ty=BOOLEAN b; span } -> { node=LiteralPat (Bool b); span }
+    | Some { ty=Tokens.I64 i; span } -> { node=LiteralPat (I64 i); span }
+    | Some { ty=Tokens.F64 f; span } -> { node=LiteralPat (F64 f); span }
+    | Some { ty=CHAR c; span } -> { node=LiteralPat (Char c); span }
+    | Some { ty=STRING c; span } -> { node=LiteralPat (String c); span }
+    | Some { ty=IDENT constr; span } when Helpers.is_capital constr ->
+        { node=ConstructorPat constr; span }
+    | Some { ty=IDENT ident; span } -> { node=IdentPat ident; span }
+    | _ -> raise (SyntaxError ("Expecting a pattern", Helpers.span_at_pos (!lex_pos)))
+  in
+
+  let rec match_expr () =
+    let start_span = (Option.get (next ())).span in
+    match next () with
+    | Some { ty=IDENT target; span } when not (Helpers.is_capital target) ->
+        begin match next () with
+        | Some { ty=L_BRACKET; _ } ->
+            let end_span = ref None in
+            let cases = CCList.of_gen (fun () ->
+              match next () with
+              | Some { ty=PIPE; _ } ->
+                  let pat = match_pattern () in
+                  begin match next () with
+                  | Some { ty=ARROW; _ } -> Some (pat, expr ())
+                  | _ -> raise (SyntaxError ("Expecting a `->`", Helpers.span_at_pos (pat.span.right + 1)))
+                  end
+              | Some { ty=R_BRACKET; span } -> end_span := Some span; None
+              | _ -> raise (SyntaxError ("Expecting a match case or `}`", lex_pos_span ()))
+            ) in
+            { node=Match { target; cases }; span=(merge_span start_span (Option.get !end_span))}
+        | _ -> raise (SyntaxError ("Expecting a `{`", Helpers.span_at_pos (span.right + 1)))
+        end
+    | _ -> raise (SyntaxError ("Expecting an identifer", Helpers.span_at_pos (!lex_pos + 1)))
+  and atom_expr () =
+    match next () with
+    | Some { ty=UNIT; span } -> { node=Literal Unit; span }
+    | Some { ty=BOOLEAN b; span } -> { node=Literal (Bool b); span }
+    | Some { ty=Tokens.I64 i; span } -> { node=Literal (I64 i); span }
+    | Some { ty=Tokens.F64 f; span } -> { node=Literal (F64 f); span }
+    | Some { ty=CHAR c; span } -> { node=Literal (Char c); span }
+    | Some { ty=STRING c; span } -> { node=Literal (String c); span }
+    | Some { ty=IDENT name; span } -> { node=Ident name; span }
     | Some { ty=L_PAREN; span } -> begin
         let { node; _ } = expr () in
         match next () with
         | Some { ty=R_PAREN; span=span_end } -> { node; span=(merge_span span span_end) }
-        | _ -> raise (SyntaxError { error=Unbalanced "paranthesis"; pos=span.left })
+        | _ -> raise (SyntaxError ("Paranthesis not closed", span))
       end
-    | _ -> raise (SyntaxError { error=Expecting "expression"; pos=(!lex_pos) })
+    | _ -> raise (SyntaxError ("Expecting an expression", lex_pos_span ()))
   and unary_expr () =
     match try_consume [NOT; MINUS] with
     | Some { ty; span } ->
@@ -120,11 +154,10 @@ let parse token lexbuf =
   and and_expr () = binary_expr ~toks:[AND] ~lparser:equality_expr ~rparser:equality_expr
   and or_expr () = binary_expr ~toks:[OR] ~lparser:and_expr ~rparser:and_expr
   and expr () = or_expr () in
-  *)
 
   let parse () =
     match peak () with
-    | Some { ty=VARIANT; _ } -> variant_def ()
+    | Some { ty=MATCH; _ } -> match_expr ()
     | _ -> raise Helpers.Unreachable
   in
 
