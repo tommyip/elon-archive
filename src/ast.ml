@@ -1,14 +1,14 @@
-type 'a spanned = { node: 'a; span: Types.span }
+open Types
 
 type variant_def =
   { name: string;
     variants: string spanned list
   }
 
-let spanned_variant_def_str { node; _ } =
+let spanned_variant_def_str { x; _ } =
   let variants = String.concat " "
-    (List.map (fun spanned -> spanned.node) node.variants) in
-  Printf.sprintf "(variant %s %s)" node.name variants
+    (List.map (fun spanned -> spanned.x) x.variants) in
+  Printf.sprintf "(variant %s %s)" x.name variants
 
 type bin_op = Eq | NotEq | Gt | Lt | GtEq | LtEq | Add | Sub | Mul | Div | Mod | Exp
 type unary_op = Not | Neg
@@ -58,8 +58,8 @@ type match_pattern
   | ConstructorPat of string
   | IdentPat of string
 
-let spanned_match_pattern_str { node; _ } =
-  match node with
+let spanned_match_pattern_str { x; _ } =
+  match x with
   | LiteralPat lit -> literal_str lit
   | ConstructorPat con -> con
   | IdentPat id -> id
@@ -90,7 +90,7 @@ let unary_op_str = function
   | Neg -> "-"
 
 let rec spanned_expr_str expr =
-  match expr.node with
+  match expr.x with
   | Match { target; cases } ->
       let case_str (pat, expr) =
         Printf.sprintf "(%s %s)" (spanned_match_pattern_str pat) (spanned_expr_str expr )

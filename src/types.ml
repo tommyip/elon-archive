@@ -3,6 +3,8 @@ type span =
     right: int;
   }
 
+type 'a spanned = { x: 'a; span: span }
+
 let span_str { left; right } =
   if left = right then
     Printf.sprintf "position %d" left
@@ -13,5 +15,4 @@ let merge_span { left; _ } { right; _} = { left; right }
 
 type ctx =
   { path:    string;
-    in_chan: in_channel;
   }

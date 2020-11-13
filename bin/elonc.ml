@@ -11,8 +11,7 @@ let parse_arg () =
   else if not (Sys.file_exists Sys.argv.(1)) then
     Error(FileNotFound)
   else
-    let path = Sys.argv.(1) in
-    Ok({ path=path; in_chan=(open_in path) })
+    Ok({ path=Sys.argv.(1) })
 
 let () =
   match parse_arg () with

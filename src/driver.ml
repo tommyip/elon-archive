@@ -1,6 +1,9 @@
 let compile ctx =
-  let lexbuf = Sedlexing.Utf8.from_channel Types.(ctx.in_chan) in
-  let expr = Parser.parse Lexer.token lexbuf in
+  let expr =
+    open_in Types.(ctx.path)
+    |> Sedlexing.Utf8.from_channel
+    |> Parser.parse
+  in
   match expr with
   | Ok expr -> print_endline (Ast.spanned_expr_str expr)
-  | Error (err, pos) -> Parser.syntax_error_pp err pos
+  | Error (err, pos) -> Parser.syntax_error_pp (err, pos)

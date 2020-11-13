@@ -1,165 +1,118 @@
 open Types
 open Tokens
+open Lexer
 open Ast
 
-exception SyntaxError of string * span
+exception ParsingError of string * span
 
-let syntax_error_pp error span =
+let syntax_error_pp (error, span) =
   Printf.eprintf "[Syntax error]: %s at %s\n" error (span_str span)
 
-(* binary_expr ::= lexpr ( tok1 | ... ) rexpr)* *)
-let binary_op_parser matcher ~toks ~lparser ~rparser =
-  let left = lparser () in
+(* A generic rule for binary expressions
+   binary_expr ::= lexpr ( tok1 | ... ) rexpr)* *)
+let binary_expr ts toks ~lparser ~rparser =
+  let left = lparser ts in
   let rec aux left =
-    match matcher toks with
-    | Some { ty; span } ->
-        let op = token2binop ty in
-        let right = rparser () in
-        aux { node=Binary { op; left; right }; span }
-    | None -> left
+    match consume ts toks with
+    | Ok { x; span } ->
+        let op = token2binop x in
+        let right = rparser ts in
+        aux { x=Binary { op; left; right }; span }
+    | Error _ -> left
   in aux left
 
-let parse token lexbuf =
-  let tok_buf = ref None in
-  let lex_pos = ref 0 in
-  let lex_pos_span () =
-    let pos = !lex_pos in
-    { left=pos; right=pos }
-  in
-  let peak () =
-    if Option.is_none !tok_buf then
-      tok_buf := token lexbuf;
-    !tok_buf
-  in
-  let next () =
-    match peak () with
-    | Some Tokens.({ span; _ }) as tok -> begin
-        tok_buf := None;
-        lex_pos := span.right;
-        tok
+let match_pattern ts =
+  match next ts with
+  | { x=UNIT; span } -> { x=LiteralPat Unit; span }
+  | { x=BOOLEAN b; span } -> { x=LiteralPat (Bool b); span }
+  | { x=Tokens.I64 i; span } -> { x=LiteralPat (I64 i); span }
+  | { x=Tokens.F64 f; span } -> { x=LiteralPat (F64 f); span }
+  | { x=CHAR c; span } -> { x=LiteralPat (Char c); span }
+  | { x=STRING c; span } -> { x=LiteralPat (String c); span }
+  | { x=IDENT ctor; span } when Helpers.is_capital ctor ->
+      { x=ConstructorPat ctor; span }
+  | { x=IDENT var; span } -> { x=IdentPat var; span }
+  | { span; _ } -> raise (ParsingError ("Expecting a pattern here", span))
+
+let rec match_expr ts =
+  let { span=lspan; _ } = next ts in
+  match (next ts, next ts) with
+  | ({ x=IDENT target; _ }, { x=L_BRACKET; _ }) when Bool.not (Helpers.is_capital target) ->
+      let cases = CCList.of_gen (fun () ->
+        consume ts [pipe]
+        |> Result.to_option
+        |> Option.map (fun _case ->
+          let pat = match_pattern ts in
+          match next ts with
+          | { x=ARROW; _ } -> (pat, expr ts)
+          | { span; _ } -> raise (ParsingError ("Expecting a `->` here", span))
+        )
+      ) in
+      begin match next ts with
+      | { x=R_BRACKET; span=rspan } ->
+          let span = merge_span lspan rspan in
+          if List.length cases > 0 then
+            { x=Match { target; cases }; span }
+          else
+            raise (ParsingError ("A match expression must have at least one match arm", span))
+      | { span; _ } -> raise (ParsingError ("It looks like you forgot to close the bracket here", span))
       end
-    | None -> None
-  in
-  (* Try to match a token, consume and return it if successful *)
-  let try_consume lst =
-    match peak () with
-    | Some { ty; _ } -> begin
-        match List.find_opt ((=) ty) lst with
-        | Some _ -> next ()
-        | None -> None
-        end
-    | None -> None
-  in
+  | ({ span; _ }, _) -> raise (ParsingError ("Expecting an identifier here", span))
 
-  let binary_expr = binary_op_parser try_consume in
+and atom ts =
+  match consume ts [unit; boolean; i64; f64; char; string; ident; l_paren] with
+  | Ok { x=UNIT; span } -> { x=Literal Unit; span }
+  | Ok { x=BOOLEAN b; span } -> { x=Literal (Bool b); span }
+  | Ok { x=Tokens.I64 i; span } -> { x=Literal (I64 i); span }
+  | Ok { x=Tokens.F64 f; span } -> { x=Literal (F64 f); span }
+  | Ok { x=CHAR c; span } -> { x=Literal (Char c); span }
+  | Ok { x=STRING c; span } -> { x=Literal (String c); span }
+  | Ok { x=IDENT name; span } -> { x=Ident name; span }
+  | Ok { x=L_PAREN; span=lspan } -> begin
+      let { x; _ } = expr ts in
+      match next ts with
+      | { x=R_PAREN; span=rspan } -> { x; span=(merge_span lspan rspan) }
+      | _ -> raise (ParsingError ("It looks like this paranthesis is not closed", lspan))
+    end
+  | Error { x=MATCH; _ } -> match_expr ts
+  | Error { span; _ } -> raise (ParsingError ("Expecting an expression here", span))
+  | _ -> raise Helpers.Unreachable
 
-  let constructor_def () =
-    match next () with
-    | Some { ty=IDENT name; span } when Helpers.is_capital name ->
-        { node=name; span }
-    | Some { ty=IDENT _; span } ->
-        raise (SyntaxError ("Variant constructor should be capitalized", span))
-    | _ -> raise (SyntaxError ("Expecting a variant constructor", lex_pos_span ()))
-  in
+and unary_expr ts =
+  match consume ts [not; minus] with
+  | Ok { x; span } ->
+      let op = token2unaryop x in
+      let expr = atom ts in
+      { x=Unary { op; expr }; span=(merge_span span expr.span) }
+  | Error _ -> atom ts
 
-  let _variant_def () =
-    let start_span = (Option.get (next ())).span in
-    match next () with
-    | Some { ty=IDENT name; _ } when Helpers.is_capital name ->
-        begin match try_consume [EQ] with
-        | Some { ty=EQ; _ } ->
-            let variant = constructor_def () in
-            let rec aux variants =
-              match try_consume [PIPE] with
-              | Some _ -> aux (constructor_def () :: variants)
-              | None -> variants
-            in
-            let variants = aux [variant] in
-            let span = merge_span start_span (List.hd variants).span in
-            { node={ name; variants }; span }
-        | _ -> raise (SyntaxError ("Expecting a `=` symbol", lex_pos_span ()))
-        end
-    | Some { ty=IDENT _; span } ->
-        raise (SyntaxError ("The type name of a variant should be capitalized", span))
-    | _ ->
-        let pos = start_span.right + 1 in
-        let span = { left=pos; right=pos } in
-        raise (SyntaxError ("Expecting a type name for the variant", span))
-  in
+and exponentiation_expr ts =
+  binary_expr ts [star_star] ~lparser:unary_expr ~rparser:exponentiation_expr
 
-  let match_pattern () =
-    match next () with
-    | Some { ty=UNIT; span } -> { node=LiteralPat Unit; span }
-    | Some { ty=BOOLEAN b; span } -> { node=LiteralPat (Bool b); span }
-    | Some { ty=Tokens.I64 i; span } -> { node=LiteralPat (I64 i); span }
-    | Some { ty=Tokens.F64 f; span } -> { node=LiteralPat (F64 f); span }
-    | Some { ty=CHAR c; span } -> { node=LiteralPat (Char c); span }
-    | Some { ty=STRING c; span } -> { node=LiteralPat (String c); span }
-    | Some { ty=IDENT constr; span } when Helpers.is_capital constr ->
-        { node=ConstructorPat constr; span }
-    | Some { ty=IDENT ident; span } -> { node=IdentPat ident; span }
-    | _ -> raise (SyntaxError ("Expecting a pattern", Helpers.span_at_pos (!lex_pos)))
-  in
+and multiplication_expr ts =
+  binary_expr ts [star; slash; percent] ~lparser:exponentiation_expr ~rparser:exponentiation_expr
 
-  let rec match_expr () =
-    let start_span = (Option.get (next ())).span in
-    match next () with
-    | Some { ty=IDENT target; span } when not (Helpers.is_capital target) ->
-        begin match next () with
-        | Some { ty=L_BRACKET; _ } ->
-            let end_span = ref None in
-            let cases = CCList.of_gen (fun () ->
-              match next () with
-              | Some { ty=PIPE; _ } ->
-                  let pat = match_pattern () in
-                  begin match next () with
-                  | Some { ty=ARROW; _ } -> Some (pat, expr ())
-                  | _ -> raise (SyntaxError ("Expecting a `->`", Helpers.span_at_pos (pat.span.right + 1)))
-                  end
-              | Some { ty=R_BRACKET; span } -> end_span := Some span; None
-              | _ -> raise (SyntaxError ("Expecting a match case or `}`", lex_pos_span ()))
-            ) in
-            { node=Match { target; cases }; span=(merge_span start_span (Option.get !end_span))}
-        | _ -> raise (SyntaxError ("Expecting a `{`", Helpers.span_at_pos (span.right + 1)))
-        end
-    | _ -> raise (SyntaxError ("Expecting an identifer", Helpers.span_at_pos (!lex_pos + 1)))
-  and atom_expr () =
-    match next () with
-    | Some { ty=UNIT; span } -> { node=Literal Unit; span }
-    | Some { ty=BOOLEAN b; span } -> { node=Literal (Bool b); span }
-    | Some { ty=Tokens.I64 i; span } -> { node=Literal (I64 i); span }
-    | Some { ty=Tokens.F64 f; span } -> { node=Literal (F64 f); span }
-    | Some { ty=CHAR c; span } -> { node=Literal (Char c); span }
-    | Some { ty=STRING c; span } -> { node=Literal (String c); span }
-    | Some { ty=IDENT name; span } -> { node=Ident name; span }
-    | Some { ty=L_PAREN; span } -> begin
-        let { node; _ } = expr () in
-        match next () with
-        | Some { ty=R_PAREN; span=span_end } -> { node; span=(merge_span span span_end) }
-        | _ -> raise (SyntaxError ("Paranthesis not closed", span))
-      end
-    | _ -> raise (SyntaxError ("Expecting an expression", lex_pos_span ()))
-  and unary_expr () =
-    match try_consume [NOT; MINUS] with
-    | Some { ty; span } ->
-        let op = token2unaryop ty in
-        let expr = atom_expr () in
-        { node=Unary { op; expr }; span=(merge_span span expr.span) }
-    | None -> atom_expr ()
-  and exponentiation_expr () = binary_expr ~toks:[STAR_STAR] ~lparser:unary_expr ~rparser:exponentiation_expr
-  and multiplication_expr () = binary_expr ~toks:[STAR; SLASH; PERCENT] ~lparser:exponentiation_expr ~rparser:exponentiation_expr
-  and addition_expr () = binary_expr ~toks:[PLUS; MINUS] ~lparser:multiplication_expr ~rparser:multiplication_expr
-  and comparsion_expr () = binary_expr ~toks:[GT; LT; GT_EQ; LT_EQ] ~lparser:addition_expr ~rparser:addition_expr
-  and equality_expr () = binary_expr ~toks:[EQ; BANG_EQ] ~lparser:comparsion_expr ~rparser:comparsion_expr
-  and and_expr () = binary_expr ~toks:[AND] ~lparser:equality_expr ~rparser:equality_expr
-  and or_expr () = binary_expr ~toks:[OR] ~lparser:and_expr ~rparser:and_expr
-  and expr () = or_expr () in
+and addition_expr ts =
+  binary_expr ts [plus; minus] ~lparser:multiplication_expr ~rparser:multiplication_expr
 
-  let parse () =
-    match peak () with
-    | Some { ty=MATCH; _ } -> match_expr ()
-    | _ -> raise Helpers.Unreachable
-  in
+and comparsion_expr ts =
+  binary_expr ts [gt; lt; gt_eq; lt_eq] ~lparser:addition_expr ~rparser:addition_expr
 
-  try Ok (parse ())
-  with SyntaxError (err, span) -> Error (err, span)
+and equality_expr ts =
+  binary_expr ts [eq; bang_eq] ~lparser:comparsion_expr ~rparser:comparsion_expr
+
+and and_expr ts =
+  binary_expr ts [and_] ~lparser:equality_expr ~rparser:equality_expr
+
+and or_expr ts =
+  binary_expr ts [or_] ~lparser:and_expr ~rparser:and_expr
+
+and expr ts = or_expr ts
+
+let parse lexbuf =
+  try
+    let ast = expr (Lexer.init lexbuf) in
+    Ok(ast)
+  with
+    | ParsingError (err, span) -> Error (err, span)
+    | LexingError (err, span) -> Error (err, span)

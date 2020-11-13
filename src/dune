@@ -2,5 +2,5 @@
   (name elon)
   (libraries sedlex containers uuseg.string)
   (preprocess
-    (pps sedlex.ppx))
+    (pps sedlex.ppx ppx_variants_conv))
     (flags :standard))

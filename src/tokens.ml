@@ -1,4 +1,6 @@
-type token_type
+open Types
+
+type t
   = EOF
   (* Single character symbols *)
   | EQ
@@ -48,8 +50,57 @@ type token_type
   | STRING of string
   (* Identifer *)
   | IDENT of string
+  [@@deriving variants]
 
-type token = { ty: token_type; span: Types.span }
+type token_id = int
+let tid higher_order_variant : token_id = higher_order_variant.Variantslib.Variant.rank
+
+open Variants
+let eof = tid eof
+let eq = tid eq
+let gt = tid gt
+let lt = tid lt
+let plus = tid plus
+let minus = tid minus
+let star = tid star
+let slash = tid slash
+let percent = tid percent
+let dot = tid dot
+let colon = tid colon
+let comma = tid comma
+let semicolon = tid semicolon
+let pipe = tid pipe
+let l_paren = tid l_paren
+let r_paren = tid r_paren
+let l_bracket = tid l_bracket
+let r_bracket = tid r_bracket
+let l_sq_bracket = tid l_sq_bracket
+let r_sq_bracket = tid r_sq_bracket
+let bang_eq = tid bang_eq
+let gt_eq = tid gt_eq
+let lt_eq = tid lt_eq
+let star_star = tid star_star
+let dot_dot = tid dot_dot
+let arrow = tid arrow
+let fat_arrow = tid fat_arrow
+let colon_eq = tid colon_eq
+let dot_dot_dot = tid dot_dot_dot
+let and_ = tid and_
+let or_ = tid or_
+let not = tid not
+let match_ = tid match_
+let variant = tid variant
+let record = tid record
+let mut = tid mut
+let unit = tid unit
+let boolean = tid boolean
+let i64 = tid i64
+let f64 = tid f64
+let char = tid char
+let string = tid string
+let ident = tid ident
+
+type spanned_t = t Types.spanned
 
 let token_type_str = function
   | EOF -> "EOF"
@@ -97,8 +148,8 @@ let token_type_str = function
   | STRING string -> "LITERAL \"" ^ string ^ "\""
   | IDENT name -> "IDENT " ^ name
 
-let token_ty_pp fmt token_ty =
+let pp fmt token_ty =
   Format.pp_print_string fmt (token_type_str token_ty)
 
-let token_pp fmt { ty; span } =
-  Format.fprintf fmt "{ ty=%s; span={ left=%d; right=%d } }" (token_type_str ty) span.left span.right
+let spanned_t_pp fmt { x; span } =
+  Format.fprintf fmt "{ tok=%s; span={ left=%d; right=%d } }" (token_type_str x) span.left span.right

@@ -51,14 +51,9 @@ function application (additional parameter list) | -
 ```
 literal             ::= UNIT | BOOLEAN | I64 | F64 | CHAR | STRING ;
 
-variant_def         ::= "variant" C_IDENT "=" constructor_def ("|" constructor_def)* ;
-constructor_def     ::= C_IDENT ;
-
 match_expr          ::= "match" IDENT "{" ("|" match_pattern "->" expr)+ "}"
 match_pattern       ::= literal
-                      | constructor
-                      | IDENT
-                      | UNDERSCORE ;
+                      | IDENT ;
 
 expr                ::= or_expr ;
 or_expr             ::= and_expr ("or" and_expr)* ;
@@ -70,7 +65,7 @@ multiplication_expr ::= exponentiation_expr (("*" | "/" | "%") exponentiation_ex
 exponentiation_expr ::= unary_expr ["**" exponentiation_expr] ;
 unary_expr          ::= ["not" | "-"] atom ;
 atom                ::= IDENT
-                      | constructor
                       | literal
+                      | match_expr
                       | "(" expr ")" ;
 ```

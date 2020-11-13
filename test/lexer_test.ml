@@ -1,34 +1,40 @@
 open Elon
-open Elon.Tokens
+open Tokens
+open Lexer
+open Types
+open Helpers
 
 module A = Alcotest
 
 (* Helpers *)
 
-let blackhole _ = ()
+let lex_string string =
+  let ts = Lexer.init (Sedlexing.Utf8.from_string string) in
+  CCList.of_gen (fun () ->
+    match next ts with
+    | { x=EOF; _ } -> None
+    | spanned_tok -> Some spanned_tok
+  )
 
-let lex_string lexer string =
-  let buf = Sedlexing.Utf8.from_string string in
-  CCList.of_gen (fun () -> lexer buf)
-
-let token = A.testable token_pp ( = )
-let token_ty = A.testable token_ty_pp ( = )
+let token = A.testable spanned_t_pp ( = )
+let token_ty = A.testable pp ( = )
 
 let check_tokens ~src ~expected () =
-  A.check (A.list token_ty) "Correct tokens" expected (lex_string Lexer.token_ty src)
+  let tokens = List.map (fun { x; _ } -> x) (lex_string src) in
+  A.check (A.list token_ty) "Correct tokens" expected tokens
 
 (* Tests *)
 
 let test_span () =
   let src = "var + 42 / 1337" in
   let expected = [
-    { ty=IDENT "var"; span={ left=0; right=3 } };
-    { ty=PLUS; span={ left=4; right=5 } };
-    { ty=I64 (Int64.of_int 42); span={ left=6; right=8 } };
-    { ty=SLASH; span={ left=9; right=10 } };
-    { ty=I64 (Int64.of_int 1337); span={ left=11; right=15 } }
+    { x=IDENT "var"; span={ left=0; right=3 } };
+    { x=PLUS; span={ left=4; right=5 } };
+    { x=I64 (Int64.of_int 42); span={ left=6; right=8 } };
+    { x=SLASH; span={ left=9; right=10 } };
+    { x=I64 (Int64.of_int 1337); span={ left=11; right=15 } }
   ] in
-  A.check (A.list token) "Correct span information" expected (lex_string Lexer.token src)
+  A.check (A.list token) "Correct span information" expected (lex_string src)
 
 let test_atom_symbols () =
   check_tokens ~src:"= < > + - * / % . : , ; | ( ) { } [ ]"
@@ -68,12 +74,13 @@ let test_chars () =
 let test_chars_not_empty () =
   A.check_raises
     "Character cannot be empty"
-    (Lexer.UnknownToken { left=0; right=0 }) (fun () -> lex_string Lexer.token "''" |> blackhole)
+    (LexingError ("Unknown token", { left=0; right=0 })) (fun () -> lex_string "''" |> blackhole)
 
 let test_chars_no_multiple_egc () =
   A.check_raises
     "A character contains a single extended grapheme cluster"
-    (Lexer.CharLen "'ab'") (fun () -> lex_string Lexer.token "'ab'" |> blackhole)
+    (LexingError ("This character literal contains more than one grapheme", { left=0; right=4 }))
+    (fun () -> lex_string "'ab'" |> blackhole)
 
 let test_strings () =
   check_tokens
@@ -99,6 +106,23 @@ let test_idents () =
       IDENT "_x";
       IDENT "_SeNdLoCaTiOn"] ()
 
+let test_api_peak () =
+  let ts = Lexer.init (Sedlexing.Utf8.from_string "42.") in
+  let peak1 = Lexer.peak ts in
+  A.check token "Peak returns next token" peak1 { x=F64 42.; span={ left=0; right=3 }};
+  let peak2 = Lexer.peak ts in
+  A.check token "Successive peaking does not advance token stream" peak2 peak1
+
+let test_api_consume () =
+  let ts = Lexer.init (Sedlexing.Utf8.from_string "hello + world") in
+  let tok1 = Result.get_ok (Lexer.consume ts [pipe; ident]) in
+  A.check token "Returns the next token" tok1 { x=IDENT "hello"; span={ left=0; right=5 } };
+  let tok2 = Lexer.next ts in
+  A.check (A.neg token) "And advance the token stream" tok2 tok1;
+  let tok3 = Result.get_error (Lexer.consume ts [f64]) in
+  let tok4 = Lexer.next ts in
+  A.check token "But don't advance the stream if not a member of toks" tok3 tok4
+
 let run () =
   A.run "Lexer" [
     "token", [
@@ -114,5 +138,7 @@ let run () =
       A.test_case "Literals - chars (No multiple EGC)" `Quick test_chars_no_multiple_egc;
       A.test_case "Literals - strings" `Quick test_strings;
       A.test_case "Identifiers" `Quick test_idents;
+      A.test_case "API - peak" `Quick test_api_peak;
+      A.test_case "API - consume" `Quick test_api_consume;
     ];
   ]
