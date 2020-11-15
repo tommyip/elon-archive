@@ -3,8 +3,6 @@ open Tokens
 
 let utf8_len = Uuseg_string.fold_utf_8 `Grapheme_cluster (fun len _ -> len + 1) 0
 
-exception LexingError of string * span
-
 let digit = [%sedlex.regexp? '0'..'9']
 let integer = [%sedlex.regexp? Opt '-', Plus digit]
 let float = [%sedlex.regexp? (integer, '.') | ('.', Plus digit) | (integer, '.', Plus digit)]
@@ -100,11 +98,20 @@ let next state =
   | { x=EOF; _ } as eof -> eof
   | tok -> state.tokbuf := None; tok
 
-let consume state toks =
+let consume state tok_id err_msg =
   let spanned = peak state in
-  match List.find_opt ((=) (Variants.to_rank spanned.x)) toks with
+  if (Variants.to_rank spanned.x) = tok_id then begin
+    if spanned.x <> EOF then state.tokbuf := None;
+    spanned
+  end else
+    let pos = spanned.span.left in
+    raise (ParsingError (err_msg, { left=pos; right=pos }))
+
+let consume_alts state tok_ids =
+  let spanned = peak state in
+  match List.find_opt ((=) (Variants.to_rank spanned.x)) tok_ids with
   | Some _ ->
-      if spanned.x != EOF then state.tokbuf := None;
+      if spanned.x <> EOF then state.tokbuf := None;
       Ok spanned
   | None -> Error spanned
 

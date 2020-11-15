@@ -44,7 +44,6 @@ function application (additional parameter list) | -
 `= !=` | left
 `and` | left
 `or` | left
-`match if` | -
 
 ## Grammar
 
@@ -62,8 +61,8 @@ equality_expr       ::= comparsion_expr (("=" | "!=") comparsion_expr)* ;
 comparsion_expr     ::= addition_expr ((">" | "<" | ">=" | "<=") addition_expr)* ;
 addition_expr       ::= multiplication_expr (("+" | "-") multiplication_expr)* ;
 multiplication_expr ::= exponentiation_expr (("*" | "/" | "%") exponentiation_expr)* ;
-exponentiation_expr ::= unary_expr ["**" exponentiation_expr] ;
-unary_expr          ::= ["not" | "-"] atom ;
+exponentiation_expr ::= unary_expr ("**" exponentiation_expr)? ;
+unary_expr          ::= ("not" | "-")? atom ;
 atom                ::= IDENT
                       | literal
                       | match_expr

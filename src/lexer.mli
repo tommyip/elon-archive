@@ -1,7 +1,5 @@
 open Tokens
 
-exception LexingError of string * Types.span
-
 type t
 
 val init : Sedlexing.lexbuf -> t
@@ -19,9 +17,16 @@ val next : t -> spanned_t
     @raise LexingError if encountered an invalid token.
 *)
 
-val consume : t -> Tokens.token_id list -> (spanned_t, spanned_t) result
-(** [consume ts toks] If the next token [tok] is a member of [toks] then
-    advance the token stream and return [Ok tok], otherwise return [Error tok].
+val consume : t -> Tokens.token_id -> string -> spanned_t
+(** [consume ts tok_id err_msg] Return the next token if it has the same id as
+    [tok_id] and advance the token stream by one token.
+    @raise ParsingError if the two id does not match.
+*)
+
+val consume_alts : t -> Tokens.token_id list -> (spanned_t, spanned_t) result
+(** [consume_alts ts tok_ids] If the next token [tok]'s id is a member of
+    [tok_ids] then advance the token stream and return [Ok tok], otherwise
+    return [Error tok].
     @raise LexingError if encounted an invalid token.
 *)
 

@@ -114,12 +114,22 @@ let test_api_peak () =
   A.check token "Successive peaking does not advance token stream" peak2 peak1
 
 let test_api_consume () =
+  let ts = Lexer.init (Sedlexing.Utf8.from_string "42 + and") in
+  let tok1 = Lexer.consume ts i64 "Expecting an integer" in
+  A.check token "Returns the next token" tok1 { x=I64 (Int64.of_int 42); span={ left=0; right=2 } };
+  let tok2 = Lexer.next ts in
+  A.check (A.neg token) "And advance the token stream" tok2 tok1;
+  A.check_raises "But don't advance the stream if token id does not match"
+    (ParsingError ("Expecting an integer", { left=5; right=5 }))
+    (fun () -> Lexer.consume ts i64 "Expecting an integer" |> blackhole)
+
+let test_api_consume_alts () =
   let ts = Lexer.init (Sedlexing.Utf8.from_string "hello + world") in
-  let tok1 = Result.get_ok (Lexer.consume ts [pipe; ident]) in
+  let tok1 = Result.get_ok (Lexer.consume_alts ts [pipe; ident]) in
   A.check token "Returns the next token" tok1 { x=IDENT "hello"; span={ left=0; right=5 } };
   let tok2 = Lexer.next ts in
   A.check (A.neg token) "And advance the token stream" tok2 tok1;
-  let tok3 = Result.get_error (Lexer.consume ts [f64]) in
+  let tok3 = Result.get_error (Lexer.consume_alts ts [f64]) in
   let tok4 = Lexer.next ts in
   A.check token "But don't advance the stream if not a member of toks" tok3 tok4
 
@@ -140,5 +150,6 @@ let run () =
       A.test_case "Identifiers" `Quick test_idents;
       A.test_case "API - peak" `Quick test_api_peak;
       A.test_case "API - consume" `Quick test_api_consume;
+      A.test_case "API - consume_alts" `Quick test_api_consume_alts;
     ];
   ]

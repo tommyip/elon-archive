@@ -3,8 +3,6 @@ open Tokens
 open Lexer
 open Ast
 
-exception ParsingError of string * span
-
 let syntax_error_pp (error, span) =
   Printf.eprintf "[Syntax error]: %s at %s\n" error (span_str span)
 
@@ -13,7 +11,7 @@ let syntax_error_pp (error, span) =
 let binary_expr ts toks ~lparser ~rparser =
   let left = lparser ts in
   let rec aux left =
-    match consume ts toks with
+    match consume_alts ts toks with
     | Ok { x; span } ->
         let op = token2binop x in
         let right = rparser ts in
@@ -36,31 +34,28 @@ let match_pattern ts =
 
 let rec match_expr ts =
   let { span=lspan; _ } = next ts in
-  match (next ts, next ts) with
-  | ({ x=IDENT target; _ }, { x=L_BRACKET; _ }) when Bool.not (Helpers.is_capital target) ->
+  match next ts with
+  | { x=IDENT target; _ } when Bool.not (Helpers.is_capital target) ->
+      consume ts l_bracket "Expecting a `{` here" |> Helpers.blackhole;
       let cases = CCList.of_gen (fun () ->
-        consume ts [pipe]
+        consume_alts ts [pipe]
         |> Result.to_option
-        |> Option.map (fun _case ->
+        |> Option.map (fun _ ->
           let pat = match_pattern ts in
-          match next ts with
-          | { x=ARROW; _ } -> (pat, expr ts)
-          | { span; _ } -> raise (ParsingError ("Expecting a `->` here", span))
+          consume ts arrow "Expecting a `->` here" |> Helpers.blackhole;
+          (pat, expr ts)
         )
       ) in
-      begin match next ts with
-      | { x=R_BRACKET; span=rspan } ->
-          let span = merge_span lspan rspan in
-          if List.length cases > 0 then
-            { x=Match { target; cases }; span }
-          else
-            raise (ParsingError ("A match expression must have at least one match arm", span))
-      | { span; _ } -> raise (ParsingError ("It looks like you forgot to close the bracket here", span))
-      end
-  | ({ span; _ }, _) -> raise (ParsingError ("Expecting an identifier here", span))
+      let { span=rspan; _ } = consume ts r_bracket "Expecting a `}` here" in
+      let span = merge_span lspan rspan in
+      if List.length cases > 0 then
+          { x=Match { target; cases }; span }
+      else
+        raise (ParsingError ("A match expression must have at least one match arm", span))
+  | { span; _ } -> raise (ParsingError ("Expecting an identifier here", span))
 
 and atom ts =
-  match consume ts [unit; boolean; i64; f64; char; string; ident; l_paren] with
+  match consume_alts ts [unit; boolean; i64; f64; char; string; ident; l_paren] with
   | Ok { x=UNIT; span } -> { x=Literal Unit; span }
   | Ok { x=BOOLEAN b; span } -> { x=Literal (Bool b); span }
   | Ok { x=Tokens.I64 i; span } -> { x=Literal (I64 i); span }
@@ -79,7 +74,7 @@ and atom ts =
   | _ -> raise Helpers.Unreachable
 
 and unary_expr ts =
-  match consume ts [not; minus] with
+  match consume_alts ts [not; minus] with
   | Ok { x; span } ->
       let op = token2unaryop x in
       let expr = atom ts in
