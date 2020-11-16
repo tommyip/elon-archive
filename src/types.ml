@@ -20,5 +20,9 @@ exception LexingError of string * span
 exception ParsingError of string * span
 
 type ctx =
-  { path:    string;
+  { path: string;
+
+    (* Debug flags *)
+    print_token_stream: bool;
+    print_ast: bool;
   }

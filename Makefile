@@ -9,7 +9,7 @@ test:
 	dune runtest -f
 
 run:
-	dune exec ./bin/elonc.exe $(args)
+	dune exec ./bin/elonc.exe -- $(args)
 
 clean:
 	dune clean

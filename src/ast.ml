@@ -10,7 +10,7 @@ let spanned_variant_def_str { x; _ } =
     (List.map (fun spanned -> spanned.x) x.variants) in
   Printf.sprintf "(variant %s %s)" x.name variants
 
-type bin_op = Eq | NotEq | Gt | Lt | GtEq | LtEq | Add | Sub | Mul | Div | Mod | Exp
+type bin_op = Eq | NotEq | Gt | Lt | GtEq | LtEq | Add | Sub | Mul | Div | Mod | Exp | And | Or
 type unary_op = Not | Neg
 
 let token2binop tok =
@@ -28,6 +28,8 @@ let token2binop tok =
   | SLASH -> Div
   | PERCENT -> Mod
   | STAR_STAR -> Exp
+  | AND -> And
+  | OR -> Or
   | _ -> raise Helpers.Unreachable
 
 let token2unaryop tok =
@@ -84,6 +86,8 @@ let bin_op_str = function
   | Div -> "/"
   | Mod -> "%"
   | Exp -> "**"
+  | And -> "And"
+  | Or -> "Or"
 
 let unary_op_str = function
   | Not -> "not"
