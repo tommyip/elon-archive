@@ -47,6 +47,7 @@ let rec token_ty buf =
   | "or" -> OR
   | "not" -> NOT
   | "let" -> LET
+  | "in" -> IN
   | "match" -> MATCH
   | "variant" -> VARIANT
   | "mut" -> MUT

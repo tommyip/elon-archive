@@ -48,8 +48,8 @@ let test_longer_symbols () =
                COLON_EQ; DOT_DOT_DOT] ()
 
 let test_keywords () =
-  check_tokens ~src:"and or not let match variant mut"
-    ~expected:[AND; OR; NOT; LET; MATCH; VARIANT; MUT] ()
+  check_tokens ~src:"and or not let in match variant mut"
+    ~expected:[AND; OR; NOT; LET; IN; MATCH; VARIANT; MUT] ()
 
 let test_unit_and_boolean () =
   check_tokens ~src:"() true false"

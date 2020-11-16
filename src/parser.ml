@@ -32,8 +32,20 @@ let match_pattern ts =
   | { x=IDENT var; span } -> { x=IdentPat var; span }
   | { span; _ } -> raise (ParsingError ("Expecting a pattern here", span))
 
-let rec match_expr ts =
-  let { span=lspan; _ } = next ts in
+let rec let_expr ts =
+  let { span=lspan; _ } = next ts in (* let *)
+  match next ts with
+  | { x=IDENT bind; _ } when Bool.not (Helpers.is_capital bind) ->
+      consume ts eq "Expecting a `=` here" |> Helpers.blackhole;
+      let value = expr ts in
+      consume ts in_ "Expecting an `in` here" |> Helpers.blackhole;
+      let expr = expr ts in
+      let span = merge_span lspan expr.span in
+      { x=Let { bind; value; expr }; span }
+  | { span; _ } -> raise (ParsingError ("Expecting an identifier here", span))
+
+and match_expr ts =
+  let { span=lspan; _ } = next ts in (* match *)
   match next ts with
   | { x=IDENT target; _ } when Bool.not (Helpers.is_capital target) ->
       consume ts l_bracket "Expecting a `{` here" |> Helpers.blackhole;
@@ -69,6 +81,7 @@ and atom ts =
       | { x=R_PAREN; span=rspan } -> { x; span=(merge_span lspan rspan) }
       | _ -> raise (ParsingError ("It looks like this paranthesis is not closed", lspan))
     end
+  | Error { x=LET; _ } -> let_expr ts
   | Error { x=MATCH; _ } -> match_expr ts
   | Error { span; _ } -> raise (ParsingError ("Expecting an expression here", span))
   | _ -> raise Helpers.Unreachable

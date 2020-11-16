@@ -1,10 +1,11 @@
 ## Core language
 
 ```
-# Variables
-let a = 5;
-let b: int = 10;
-let c: array<int> = [| 1, 4; 7 |];
+# Let expression
+let a = 5 in a
+let b: int = 10 in b
+let c: array<int> = [| 1, 4; 7 |] in c
+
 
 # Pattern matching
 match cond {
@@ -14,21 +15,22 @@ match cond {
 }
 
 # Conditional expression
-if a { b } else { c }
+if a then b else c
 
 # Functions
-let id = () => ();
+let id = () => ()
+
 let sum = (a: int)(b: float) -> float =>
-  a + Float.to_int(b);
-let bump = sum(1);
+  a + Float.to_int(b)
+
 let fib = (x: int) -> int =>
-  fib(x - 1) + fib(x - 2);
-let quadratic = (a: float, b: float, c: float) -> (float, float) => {
-  let neg_b = -b;
-  let root = Float.sqrt(b ** 2 - 4 * a * c);
-  let double_a = 2 * a;
+  fib(x - 1) + fib(x - 2)
+
+let quadratic = (a: float, b: float, c: float) -> (float, float) =>
+  let neg_b = -b in
+  let root = Float.sqrt(b ** 2 - 4 * a * c) in
+  let double_a = 2 * a in
   ((neg_b + root) / double_a, (neg_b - root) / double_a)
-};
 ```
 
 ## Precendence
@@ -50,6 +52,8 @@ function application (additional parameter list) | -
 ```
 literal             ::= UNIT | BOOLEAN | I64 | F64 | CHAR | STRING ;
 
+let_expr            ::= "let" IDENT "=" expr "in" expr ;
+
 match_expr          ::= "match" IDENT "{" ("|" match_pattern "->" expr)+ "}"
 match_pattern       ::= literal
                       | IDENT ;
@@ -65,6 +69,7 @@ exponentiation_expr ::= unary_expr ("**" exponentiation_expr)? ;
 unary_expr          ::= ("not" | "-")? atom ;
 atom                ::= IDENT
                       | literal
+                      | let_expr
                       | match_expr
                       | "(" expr ")" ;
 ```

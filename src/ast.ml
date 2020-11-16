@@ -67,7 +67,8 @@ let spanned_match_pattern_str { x; _ } =
   | IdentPat id -> id
 
 type expr
-  = Match of { target: string; cases: (match_pattern spanned * expr spanned) list }
+  = Let of { bind: string; value: expr spanned; expr: expr spanned }
+  | Match of { target: string; cases: (match_pattern spanned * expr spanned) list }
   | Binary of { op: bin_op; left: expr spanned; right: expr spanned }
   | Unary of { op: unary_op; expr: expr spanned }
   | Literal of literal
@@ -95,6 +96,8 @@ let unary_op_str = function
 
 let rec spanned_expr_str expr =
   match expr.x with
+  | Let { bind; value; expr } ->
+      Printf.sprintf "(let (%s %s) %s)" bind (spanned_expr_str value) (spanned_expr_str expr)
   | Match { target; cases } ->
       let case_str (pat, expr) =
         Printf.sprintf "(%s %s)" (spanned_match_pattern_str pat) (spanned_expr_str expr )

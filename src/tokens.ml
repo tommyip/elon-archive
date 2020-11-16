@@ -37,6 +37,7 @@ type t
   | OR
   | NOT
   | LET
+  | IN
   | MATCH
   | VARIANT
   | RECORD
@@ -88,6 +89,8 @@ let dot_dot_dot = tid dot_dot_dot
 let and_ = tid and_
 let or_ = tid or_
 let not = tid not
+let let_ = tid let_
+let in_ = tid in_
 let match_ = tid match_
 let variant = tid variant
 let record = tid record
@@ -136,6 +139,7 @@ let token_type_str = function
   | OR -> "SYMBOL or"
   | NOT -> "SYMBOL not"
   | LET -> "KEYWORD let"
+  | IN -> "KEYWORD in"
   | MATCH -> "KEYWORD match"
   | VARIANT -> "KEYWORD variant"
   | RECORD -> "KEYWORD record"
